@@ -1,0 +1,9 @@
+/home/kevinedey/Code/Personal/zig_cam/libuvc/build/CMakeFiles/uvc.dir
+/home/kevinedey/Code/Personal/zig_cam/libuvc/build/CMakeFiles/uvc_static.dir
+/home/kevinedey/Code/Personal/zig_cam/libuvc/build/CMakeFiles/example.dir
+/home/kevinedey/Code/Personal/zig_cam/libuvc/build/CMakeFiles/edit_cache.dir
+/home/kevinedey/Code/Personal/zig_cam/libuvc/build/CMakeFiles/rebuild_cache.dir
+/home/kevinedey/Code/Personal/zig_cam/libuvc/build/CMakeFiles/list_install_components.dir
+/home/kevinedey/Code/Personal/zig_cam/libuvc/build/CMakeFiles/install.dir
+/home/kevinedey/Code/Personal/zig_cam/libuvc/build/CMakeFiles/install/local.dir
+/home/kevinedey/Code/Personal/zig_cam/libuvc/build/CMakeFiles/install/strip.dir
