@@ -12,10 +12,15 @@ const unistd = @cImport({
     @cInclude("unistd.h");
 });
 
+fn user_fun() void {
+    std.debug.print("Woot woot!", .{});
+}
+
 // This callback function runs once per frame. Use it to perform any
 // quick processing you need, or have it put the frame into your application's
 // input queue. If this function takes too long, you'll start losing frames.
 fn cb(frame: [*c]libuvc.uvc_frame_t, ptr: ?*anyopaque) callconv(.C) void {
+    std.debug.print("inside callback\n", .{});
     // So the equivalent of this, would be to pass `&frame_format` to the library, and
     // do `const frame_format: *uvc_frame_format = @ptrCast(@alignCast(ptr));`
     // in the callback, although a single enum value could also be passed as
@@ -102,6 +107,7 @@ fn cb(frame: [*c]libuvc.uvc_frame_t, ptr: ?*anyopaque) callconv(.C) void {
 }
 
 pub fn main() !void {
+
     // // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
     // std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
 
@@ -144,18 +150,32 @@ pub fn main() !void {
 
     std.debug.print("UVC initialized\n", .{});
 
+    // ATTRS{dbc_idProduct}=="0010"
+    //     ATTRS{dbc_idVendor}=="1d6b"
+    // 0c45:6d1f
+    // ATTRS{idProduct}=="6d1f"
+    //     ATTRS{idVendor}=="0c45"
+
+    //     ATTRS{idProduct}=="5423"
+    //     ATTRS{idVendor}=="0bda"
+
+    // ATTRS{idProduct}=="5411"
+    //     ATTRS{idVendor}=="0bda"
+
+    // ATTRS{idProduct}=="28c4"
+    //     ATTRS{idVendor}=="1bcf"
+    // ATTRS{serial}=="01.00.00"
+
+    // const res1 = libuvc.uvc_find_device(ctx, &dev, 0x0c45, 0x6d1f, null);
+
     const res1 = libuvc.uvc_find_device(ctx, &dev, 0, 0, null);
+
     std.debug.print("res1 {?}\n", .{res1});
     std.log.info("{s}-{?}: yo", .{ @src().fn_name, @src().line });
 
     // Close the UVC context. This closes and cleans up any existing device handles,
     // and it closes the libusb context if one was not provided.
     defer libuvc.uvc_exit(ctx);
-    // Release the device descriptor
-    defer libuvc.uvc_unref_device(dev);
-
-    // Release our handle on the device
-    defer libuvc.uvc_close(devh);
 
     if (res1 < 0) {
         // No devices found
@@ -173,6 +193,12 @@ pub fn main() !void {
         std.debug.print("Unable to open device\n", .{});
         return;
     }
+
+    // Release the device descriptor
+    defer libuvc.uvc_unref_device(dev);
+    // Release our handle on the device
+    defer libuvc.uvc_close(devh);
+
     std.debug.print("Device found\n", .{});
 
     // Print out a message containing all the information that libuvc
@@ -218,7 +244,8 @@ pub fn main() !void {
     // /* Start the video stream. The library will call user function cb:
     //  *   cb(frame, (void *) 12345)
     //  */
-    const res4 = libuvc.uvc_start_streaming(devh, &ctrl, cb, @ptrFromInt(12345), 0);
+    const user_fn: *anyopaque = @constCast(&user_fun);
+    const res4 = libuvc.uvc_start_streaming(devh, &ctrl, cb, user_fn, 0);
 
     if (res4 < 0) {
         libuvc.uvc_perror(res4, "start_streaming");
