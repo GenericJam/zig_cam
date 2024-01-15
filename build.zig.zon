@@ -15,6 +15,14 @@
     // Once all dependencies are fetched, `zig build` no longer requires
     // internet connectivity.
     .dependencies = .{
+        .zigimg = .{
+            .url = "https://github.com/zigimg/zigimg/archive/ad6ad042662856f55a4d67499f1c4606c9951031.tar.gz",
+            .hash = "1220bf6b616ca219f95be1205b12aa8cdb7e09838fcebeae90b48b5ab0a030c5ab45",
+        },
+        .libuvc = .{
+            .url = "https://github.com/libuvc/libuvc/archive/e001f04d53367f9c8d26a162c65c24b07fd46729.tar.gz",
+            .hash = "12205f489cc2e8edbaf2005e28b05bea4dd567d49a23646956b47aef369d09676774",
+        },
         // See `zig fetch --save <url>` for a command-line interface for adding dependencies.
         //.example = .{
         //    // When updating this field to a new URL, be sure to delete the corresponding

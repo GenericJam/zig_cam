@@ -36,7 +36,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    exe.addIncludePath(.{ .path = "libuvc/include" });
+    exe.addIncludePath(.{ .path = "deps/libuvc/include" });
     // exe.addIncludePath(.{ .path = "/usr/include/libusb-1.0" });
 
     const libuvc = b.addSharedLibrary(.{
@@ -54,16 +54,16 @@ pub fn build(b: *std.Build) void {
         .files = &.{
             // "libuvc/include/libuvc/libuvc.h",
             // "libuvc/include/libuvc/libuvc_internal.h",
-            "libuvc/src/ctrl-gen.c",
-            "libuvc/src/ctrl.c",
-            "libuvc/src/device.c",
-            "libuvc/src/diag.c",
+            "deps/libuvc/src/ctrl-gen.c",
+            "deps/libuvc/src/ctrl.c",
+            "deps/libuvc/src/device.c",
+            "deps/libuvc/src/diag.c",
             // "libuvc/src/example.c",
             // "libuvc/src/frame-mjpeg.c",
-            "libuvc/src/frame.c",
-            "libuvc/src/init.c",
-            "libuvc/src/misc.c",
-            "libuvc/src/stream.c",
+            "deps/libuvc/src/frame.c",
+            "deps/libuvc/src/init.c",
+            "deps/libuvc/src/misc.c",
+            "deps/libuvc/src/stream.c",
             // "libuvc/src/test.c",
         },
     });
@@ -71,15 +71,41 @@ pub fn build(b: *std.Build) void {
     libuvc.linkSystemLibrary("c");
     // libuvc.linkSystemLibrary("libusb-1.0");
     libuvc.linkSystemLibrary("libuvc");
-    // libuvc.linkSystemLibrary("opencv4");
+    libuvc.linkSystemLibrary("opencv4");
 
+    const libpng = b.addSharedLibrary(.{
+        .name = "libpng",
+        .version = .{ .major = 1, .minor = 0, .patch = 0 },
+        .target = target,
+        .optimize = optimize,
+    });
+
+    libpng.addIncludePath(.{ .path = "libpng" });
+
+    // libuvc.addIncludePath(.{ .path = "libuvc/include/libuvc" });
+    // libuvc.addIncludePath(.{ .path = "/usr/include/opencv4/opencv2" });
+
+    libpng.addCSourceFiles(.{
+        .files = &.{
+            "libpng/png.c",
+            "libpng/pngset.c",
+            "libpng/pngwrite.c",
+        },
+    });
+    libpng.linkLibC();
+    libpng.linkSystemLibrary("c");
+
+    // exe.linkLibrary(libpng);
     exe.linkLibrary(libuvc);
+
     exe.linkSystemLibrary("c");
     // exe.linkSystemLibrary("libusb");
     exe.linkSystemLibrary("libusb-1.0");
     exe.linkSystemLibrary("libuvc");
 
     exe.linkLibC();
+
+    exe.addAnonymousModule("zigimg", .{ .source_file = .{ .path = "deps/zigimg/zigimg.zig" } });
     // exe.addCSourceFile(.{ .file = std.build.LazyPath.relative("src/main.c"), .flags = &.{} });
     // exe.linkLibC();
 
