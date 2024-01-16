@@ -53,18 +53,15 @@ const UvcFrameFormat = enum(c_uint) {
     count = libuvc.UVC_FRAME_FORMAT_COUNT,
 };
 
-fn user_fun() void {
-    std.debug.print("Woot woot!", .{});
-}
-
 // This callback function runs once per frame. Use it to perform any
 // quick processing you need, or have it put the frame into your application's
 // input queue. If this function takes too long, you'll start losing frames.
-fn cb(frame: [*c]libuvc.uvc_frame_t, _: ?*anyopaque) callconv(.C) void {
+fn cb(frame: [*c]libuvc.uvc_frame_t, opaque_canvas: ?*anyopaque) callconv(.C) void {
+    const canvas_ptr: *img.Image = @ptrCast(@alignCast(opaque_canvas));
 
     // UVC_FRAME_FORMAT_MJPEG is the frame format
 
-    std.debug.print("inside callback\n", .{});
+    std.debug.print("Frame sequence {?}\n", .{frame.*.sequence});
 
     // We'll convert the image from YUV/JPEG to RGB, so allocate space
     const rgb = libuvc.uvc_allocate_frame(frame.*.width * frame.*.height * 3);
@@ -94,37 +91,20 @@ fn cb(frame: [*c]libuvc.uvc_frame_t, _: ?*anyopaque) callconv(.C) void {
         },
     };
 
-    // initialize the allocator
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    const buffer_ptr: [*]img.color.Rgb24 = @ptrCast(@alignCast(rgb.*.data));
+    const buffer_slice: []img.color.Rgb24 = buffer_ptr[0 .. frame.*.width * frame.*.height * 3];
 
-    // free the memory on exit
-    defer arena.deinit();
+    canvas_ptr.*.pixels = .{ .rgb24 = buffer_slice };
 
-    // initialize the allocator
-    const allocator = arena.allocator();
-
-    const buffer: [*]img.color.Rgb24 = @ptrCast(@alignCast(rgb.*.data));
-    const b: []img.color.Rgb24 = buffer[0 .. frame.*.width * frame.*.height * 3];
-
-    const image = img.Image{
-        .allocator = allocator,
-        .width = frame.*.width,
-        .height = frame.*.height,
-        .pixels = img.color.PixelStorage{ .rgb24 = b },
-    };
-
-    // Maybe stop ignoring this potential error in the future
-    _ = img.Image.writeToFilePath(image, "test.png", .{
-        .png = .{
-            // These are defaults which can be substituted
-            // .interlaced = false,
-            // .filter_choice = .heuristic,
-        },
-    }) catch img.Image.WriteError;
-
-    if (frame.*.sequence % 30 == 0) {
-        std.debug.print(" * got image {?}\n", .{frame.*.sequence});
-    }
+    // // Maybe stop ignoring this potential error in the future
+    // // Uncomment to save a frame to disk - this is slow
+    // _ = img.Image.writeToFilePath(canvas_ptr.*, "test.png", .{
+    //     .png = .{
+    //         // These are defaults which can be substituted
+    //         // .interlaced = false,
+    //         // .filter_choice = .heuristic,
+    //     },
+    // }) catch img.Image.WriteError;
 }
 
 pub fn main() !void {
@@ -136,7 +116,8 @@ pub fn main() !void {
     var devh: ?*libuvc.uvc_device_handle_t = undefined;
 
     const res0 = libuvc.uvc_init(&ctx, null);
-    std.debug.print("res0 {?}", .{res0});
+
+    // Demo of printing context info
     std.log.info("{s}-{?}: yo", .{ @src().fn_name, @src().line });
 
     if (res0 < 0) {
@@ -149,9 +130,6 @@ pub fn main() !void {
 
     // If you're failing here it might be a permissions issue
     const res1 = libuvc.uvc_find_device(ctx, &dev, 0, 0, null);
-
-    std.debug.print("res1 {?}\n", .{res1});
-    std.log.info("{s}-{?}: yo", .{ @src().fn_name, @src().line });
 
     // Close the UVC context. This closes and cleans up any existing device handles,
     // and it closes the libusb context if one was not provided.
@@ -188,8 +166,8 @@ pub fn main() !void {
     const format_desc = libuvc.uvc_get_format_descs(devh);
     const frame_desc = format_desc.*.frame_descs;
 
-    var width: c_int = 640;
-    var height: c_int = 480;
+    var c_width: c_int = 640;
+    var c_height: c_int = 480;
     var fps: c_int = 30;
 
     const frame_format: c_uint = switch (format_desc.*.bDescriptorSubtype) {
@@ -199,17 +177,17 @@ pub fn main() !void {
     };
 
     if (frame_desc != null) {
-        width = frame_desc.*.wWidth;
-        height = frame_desc.*.wHeight;
+        c_width = frame_desc.*.wWidth;
+        c_height = frame_desc.*.wHeight;
         fps = @intCast(10000000 / frame_desc.*.dwDefaultFrameInterval);
     }
 
-    std.debug.print("\nFirst format: {?} {?} {?} {?}\n", .{ format_desc.*, width, height, fps });
+    std.debug.print("\nFirst format: {?} {?} {?} {?}\n", .{ format_desc.*, c_width, c_height, fps });
 
     // Try to negotiate first stream profile
     const res3 = libuvc.uvc_get_stream_ctrl_format_size(devh,
     // result stored in ctrl
-    &ctrl, frame_format, width, height, fps);
+    &ctrl, frame_format, c_width, c_height, fps);
 
     // Print out the result
     libuvc.uvc_print_stream_ctrl(&ctrl, null);
@@ -221,15 +199,25 @@ pub fn main() !void {
         return;
     }
 
-    // /* Start the video stream. The library will call user function cb:
-    //  *   cb(frame, (void *) 12345)
-    //  */
+    // initialize the allocator
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
+    // free the memory on exit
+    defer arena.deinit();
+
+    // initialize the allocator
+    const allocator = arena.allocator();
+
+    const width: u64 = @intCast(c_width);
+    const height: u64 = @intCast(c_height);
+
+    var canvas = try img.Image.create(allocator, width, height, .rgb24);
 
     // const user_ptr: *anyopaque = undefined;
-    const user_fn: *anyopaque = @constCast(&user_fun);
+    const opaque_canvas: *anyopaque = @constCast(&canvas);
 
     // This user_fn here can be any kind of pointer which you could use however you want
-    const res4 = libuvc.uvc_start_streaming(devh, &ctrl, cb, user_fn, 0);
+    const res4 = libuvc.uvc_start_streaming(devh, &ctrl, cb, opaque_canvas, 0);
 
     if (res4 < 0) {
         libuvc.uvc_perror(res4, "start_streaming");
@@ -252,9 +240,20 @@ pub fn main() !void {
 
     // stream for 10 seconds */
     // _ = unistd.sleep(10);
-    std.time.sleep(std.time.ns_per_s * 10);
+    std.time.sleep(std.time.ns_per_s * 1);
 
     // End the stream. Blocks until last callback is serviced */
     libuvc.uvc_stop_streaming(devh);
+
+    // Save whatever the last image is to show us it worked
+    // Maybe stop ignoring this potential error in the future
+    _ = img.Image.writeToFilePath(canvas, "test.png", .{
+        .png = .{
+            // These are defaults which can be substituted
+            // .interlaced = false,
+            // .filter_choice = .heuristic,
+        },
+    }) catch img.Image.WriteError;
+
     std.debug.print("Done streaming.\n", .{});
 }
