@@ -60,23 +60,11 @@ fn user_fun() void {
 // This callback function runs once per frame. Use it to perform any
 // quick processing you need, or have it put the frame into your application's
 // input queue. If this function takes too long, you'll start losing frames.
-fn cb(frame: [*c]libuvc.uvc_frame_t, ptr: ?*anyopaque) callconv(.C) void {
+fn cb(frame: [*c]libuvc.uvc_frame_t, _: ?*anyopaque) callconv(.C) void {
 
     // UVC_FRAME_FORMAT_MJPEG is the frame format
 
     std.debug.print("inside callback\n", .{});
-
-    // So the equivalent of this, would be to pass `&frame_format` to the library, and
-    // do `const frame_format: *uvc_frame_format = @ptrCast(@alignCast(ptr));`
-    // in the callback, although a single enum value could also be passed as
-    // `@ptrFromInt(@intFromEnum(frame_format))` and accepted as
-    // `const frame_format: uvc_frame_format = @enumFromInt(@intFromPtr(ptr));`.
-    const frame_format: *libuvc.uvc_frame_format = @ptrCast(@alignCast(ptr));
-    //   /* FILE *fp;
-    //    * static int jpeg_count = 0;
-    //    * static const char *H264_FILE = "iOSDevLog.h264";
-    //    * static const char *MJPEG_FILE = ".jpeg";
-    //    * char filename[16]; */
 
     // We'll convert the image from YUV/JPEG to RGB, so allocate space
     const rgb = libuvc.uvc_allocate_frame(frame.*.width * frame.*.height * 3);
@@ -88,11 +76,7 @@ fn cb(frame: [*c]libuvc.uvc_frame_t, ptr: ?*anyopaque) callconv(.C) void {
         return;
     }
 
-    // std.debug.print("uvc_frame_format {?}\n", .{@as(libuvc.uvc_frame_format, @enumFromInt(frame_format.*))});
-
-    std.debug.print("callback! frame_format = {?}, width = {?}, height = {?}, length = {?}, frame_format = {?}\n", .{ frame.*.frame_format, frame.*.width, frame.*.height, frame.*.data_bytes, frame_format });
-
-    // /* Do the RGB conversion */
+    // Do the RGB conversion
     const ret = libuvc.uvc_any2rgb(frame, rgb);
     if (ret < 0) {
         libuvc.uvc_perror(ret, "uvc_any2rgb");
@@ -100,33 +84,15 @@ fn cb(frame: [*c]libuvc.uvc_frame_t, ptr: ?*anyopaque) callconv(.C) void {
         return;
     }
 
-    // A simple to save a png with a bit more flexibility. This function
-    // returns 0 on success otherwise -1.
+    _ = switch (frame.*.frame_format) {
+        // We only care about this one
+        libuvc.UVC_COLOR_FORMAT_MJPEG => null,
 
-    // - filename:   the path where you want to save the png.
-    // - width:      width of the image
-    // - height:     height of the image
-    // - bitdepth:   how many bits per pixel (e.g. 8).
-    // - colortype:  PNG_COLOR_TYEP_GRAY
-    //               PNG_COLOR_TYPE_PALETTE
-    //               PNG_COLOR_TYPE_RGB
-    //               PNG_COLOR_TYPE_RGB_ALPHA
-    //               PNG_COLOR_TYPE_GRAY_ALPHA
-    //               PNG_COLOR_TYPE_RGBA          (alias for _RGB_ALPHA)
-    //               PNG_COLOR_TYPE_GA            (alias for _GRAY_ALPHA)
-    // - pitch:      The stride (e.g. '4 * width' for RGBA).
-    // - transform:  PNG_TRANSFORM_IDENTITY
-    //               PNG_TRANSFORM_PACKING
-    //               PNG_TRANSFORM_PACKSWAP
-    //               PNG_TRANSFORM_INVERT_MONO
-    //               PNG_TRANSFORM_SHIFT
-    //               PNG_TRANSFORM_BGR
-    //               PNG_TRANSFORM_SWAP_ALPHA
-    //               PNG_TRANSFORM_SWAP_ENDIAN
-    //               PNG_TRANSFORM_INVERT_ALPHA
-    //               PNG_TRANSFORM_STRIP_FILLER
-
-    // _ = png.save("yo.png", frame.*.width, frame.*.height, 16, libpng.PNG_COLOR_TYPE_RGB, rgb.*.data, 3, libpng.PNG_TRANSFORM_IDENTITY);
+        else => {
+            std.debug.print("Wrong frame format {any}", .{frame.*.frame_format});
+            return;
+        },
+    };
 
     // initialize the allocator
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -147,10 +113,8 @@ fn cb(frame: [*c]libuvc.uvc_frame_t, ptr: ?*anyopaque) callconv(.C) void {
         .pixels = img.color.PixelStorage{ .rgb24 = b },
     };
 
-    // const png_format = img.Image.EncoderOptions{ .png = img.Image.EncoderOptions.PNG };
-    // const png_format = img.Image.EncoderOptions;
-
-    _ = img.Image.writeToFilePath(image, "yo.png", .{
+    // Maybe stop ignoring this potential error in the future
+    _ = img.Image.writeToFilePath(image, "test.png", .{
         .png = .{
             // These are defaults which can be substituted
             // .interlaced = false,
@@ -158,90 +122,18 @@ fn cb(frame: [*c]libuvc.uvc_frame_t, ptr: ?*anyopaque) callconv(.C) void {
         },
     }) catch img.Image.WriteError;
 
-    _ = switch (frame.*.frame_format) {
-        libuvc.UVC_FRAME_FORMAT_H264 =>
-        // /* use `ffplay H264_FILE` to play */
-        // /* fp = fopen(H264_FILE, "a");
-        //  * fwrite(frame->data, 1, frame->data_bytes, fp);
-        //  * fclose(fp); */
-        null,
-        libuvc.UVC_COLOR_FORMAT_MJPEG =>
-        // /* sprintf(filename, "%d%s", jpeg_count++, MJPEG_FILE);
-        //  * fp = fopen(filename, "w");
-        //  * fwrite(frame->data, 1, frame->data_bytes, fp);
-        //  * fclose(fp); */
-        null,
-        libuvc.UVC_COLOR_FORMAT_YUYV => {},
-
-        else => null,
-    };
-
     if (frame.*.sequence % 30 == 0) {
         std.debug.print(" * got image {?}\n", .{frame.*.sequence});
     }
-
-    //   /* Call a user function:
-    //    *
-    //    * my_type *my_obj = (*my_type) ptr;
-    //    * my_user_function(ptr, rgb);
-    //    * my_other_function(ptr, rgb->data, rgb->width, rgb->height);
-    //    */
-
-    //   /* Call a C++ method:
-    //    *
-    //    * my_type *my_obj = (*my_type) ptr;
-    //    * my_obj->my_func(rgb);
-    //    */
-
-    //   /* Use opencv.highgui to display the image:
-    //    *
-    //    * cvImg = cvCreateImageHeader(
-    //    *     cvSize(rgb->width, rgb->height),
-    //    *     IPL_DEPTH_8U,
-    //    *     3);
-    //    *
-    //    * cvSetData(cvImg, rgb->data, rgb->width * 3);
-    //    *
-    //    * cvNamedWindow("Test", CV_WINDOW_AUTOSIZE);
-    //    * cvShowImage("Test", cvImg);
-    //    * cvWaitKey(10);
-    //    *
-    //    * cvReleaseImageHeader(&cvImg);
-    //    */
-
 }
 
 pub fn main() !void {
-    std.debug.print("enum {?}", .{@intFromEnum(UvcFrameFormat.mjpeg)});
-    // // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    // std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
 
-    // // stdout is for the actual output of your application, for example if you
-    // // are implementing gzip, then only the compressed bytes should be sent to
-    // // stdout, not any debugging messages.
-    // const stdout_file = std.io.getStdOut().writer();
-    // var bw = std.io.bufferedWriter(stdout_file);
-    // const stdout = bw.writer();
-
-    // try stdout.print("Run `zig build test` to run the tests.\n", .{});
-
-    // try bw.flush(); // don't forget to flush!
-
-    // std.debug.print("yo", .{});
-
+    // All of these get dropped into libuvc functions
     var ctx: ?*libuvc.uvc_context_t = undefined;
     var dev: ?*libuvc.uvc_device_t = undefined;
     var ctrl: libuvc.uvc_stream_ctrl_t = undefined;
     var devh: ?*libuvc.uvc_device_handle_t = undefined;
-    // var usb_devh: ?*libusb_device_handle = undefined;
-    // var ret: u16 = 0
-    //     unsigned int ret;
-
-    //     bw = blobwatch_new(WIDTH, HEIGHT);
-
-    //     SDL_Init(SDL_INIT_EVERYTHING);
-
-    //     SDL_mutex* mutex = SDL_CreateMutex();
 
     const res0 = libuvc.uvc_init(&ctx, null);
     std.debug.print("res0 {?}", .{res0});
@@ -255,24 +147,7 @@ pub fn main() !void {
 
     std.debug.print("UVC initialized\n", .{});
 
-    // ATTRS{dbc_idProduct}=="0010"
-    //     ATTRS{dbc_idVendor}=="1d6b"
-    // 0c45:6d1f
-    // ATTRS{idProduct}=="6d1f"
-    //     ATTRS{idVendor}=="0c45"
-
-    //     ATTRS{idProduct}=="5423"
-    //     ATTRS{idVendor}=="0bda"
-
-    // ATTRS{idProduct}=="5411"
-    //     ATTRS{idVendor}=="0bda"
-
-    // ATTRS{idProduct}=="28c4"
-    //     ATTRS{idVendor}=="1bcf"
-    // ATTRS{serial}=="01.00.00"
-
-    // const res1 = libuvc.uvc_find_device(ctx, &dev, 0x0c45, 0x6d1f, null);
-
+    // If you're failing here it might be a permissions issue
     const res1 = libuvc.uvc_find_device(ctx, &dev, 0, 0, null);
 
     std.debug.print("res1 {?}\n", .{res1});
@@ -312,7 +187,7 @@ pub fn main() !void {
 
     const format_desc = libuvc.uvc_get_format_descs(devh);
     const frame_desc = format_desc.*.frame_descs;
-    // var frame_format: libuvc.uvc_frame_format = undefined;
+
     var width: c_int = 640;
     var height: c_int = 480;
     var fps: c_int = 30;
@@ -353,6 +228,7 @@ pub fn main() !void {
     // const user_ptr: *anyopaque = undefined;
     const user_fn: *anyopaque = @constCast(&user_fun);
 
+    // This user_fn here can be any kind of pointer which you could use however you want
     const res4 = libuvc.uvc_start_streaming(devh, &ctrl, cb, user_fn, 0);
 
     if (res4 < 0) {
@@ -367,9 +243,9 @@ pub fn main() !void {
     std.debug.print("Setting aperture and exposure mode.\n", .{});
     const UVC_AUTO_EXPOSURE_MODE_AUTO: u8 = 8;
     const res5 = libuvc.uvc_set_ae_mode(devh, UVC_AUTO_EXPOSURE_MODE_AUTO);
-    std.debug.print("res5 {?}\n", .{res5});
+
     if (res5 == libuvc.UVC_SUCCESS) {
-        std.debug.print(" ... enabled aperture priority auto exposure mode\n", .{});
+        std.debug.print("enabled aperture priority auto exposure mode\n", .{});
     } else {
         libuvc.uvc_perror(res5, " ... uvc_set_ae_mode failed to enable auto exposure mode");
     }

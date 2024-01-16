@@ -1198,21 +1198,19 @@ uvc_error_t uvc_stream_start(
   strmh->last_scr = 0;
 
   frame_desc = uvc_find_frame_desc_stream(strmh, ctrl->bFormatIndex, ctrl->bFrameIndex);
-  printf("uvc_stream_start 1 \n");
+
   if (!frame_desc)
   {
     ret = UVC_ERROR_INVALID_PARAM;
     goto fail;
   }
   format_desc = frame_desc->parent;
-  printf("uvc_stream_start begin 2\n");
   strmh->frame_format = uvc_frame_format_for_guid(format_desc->guidFormat);
   if (strmh->frame_format == UVC_FRAME_FORMAT_UNKNOWN)
   {
     ret = UVC_ERROR_NOT_SUPPORTED;
     goto fail;
   }
-  printf("uvc_stream_start begin 3\n");
   // Get the interface that provides the chosen format and frame configuration
   interface_id = strmh->stream_if->bInterfaceNumber;
   interface = &strmh->devh->info->config->interface[interface_id];
@@ -1289,7 +1287,7 @@ uvc_error_t uvc_stream_start(
         break;
       }
     }
-    printf("uvc_stream_start begin 4\n");
+
     /* If we searched through all the altsettings and found nothing usable */
     if (alt_idx == interface->num_altsetting)
     {
@@ -1301,13 +1299,13 @@ uvc_error_t uvc_stream_start(
     ret = libusb_set_interface_alt_setting(strmh->devh->usb_devh,
                                            altsetting->bInterfaceNumber,
                                            altsetting->bAlternateSetting);
-    printf("uvc_stream_start begin 5\n");
+
     if (ret != UVC_SUCCESS)
     {
       UVC_DEBUG("libusb_set_interface_alt_setting failed");
       goto fail;
     }
-    printf("uvc_stream_start begin 6\n");
+
     /* Set up the transfers */
     for (transfer_id = 0; transfer_id < LIBUVC_NUM_TRANSFER_BUFS; ++transfer_id)
     {
@@ -1343,13 +1341,13 @@ uvc_error_t uvc_stream_start(
 
   strmh->user_cb = cb;
   strmh->user_ptr = user_ptr;
-  printf("uvc_stream_start begin 8\n");
+
   /* If the user wants it, set up a thread that calls the user's function
    * with the contents of each frame.
    */
   if (cb)
   {
-    printf("uvc_stream_start begin 9\n");
+
     pthread_create(&strmh->cb_thread, NULL, _uvc_user_caller, (void *)strmh);
   }
 
@@ -1363,7 +1361,7 @@ uvc_error_t uvc_stream_start(
       break;
     }
   }
-  printf("uvc_stream_start begin 10\n");
+
   if (ret != UVC_SUCCESS && transfer_id >= 0)
   {
     for (; transfer_id < LIBUVC_NUM_TRANSFER_BUFS; transfer_id++)
@@ -1374,7 +1372,7 @@ uvc_error_t uvc_stream_start(
     }
     ret = UVC_SUCCESS;
   }
-  printf("uvc_stream_start begin 11\n");
+
   UVC_EXIT(ret);
   return ret;
 fail:
